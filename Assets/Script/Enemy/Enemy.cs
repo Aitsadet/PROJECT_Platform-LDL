@@ -1,115 +1,124 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class Enemy : MonoBehaviour
 {
-    [Header("Health")]
+    [Header("Health & Damage")]
     public int maxHealth = 3;
     private int currentHealth;
+    public int damageToPlayer = 1;
 
-    [Header("Chase Player")]
-    public float moveSpeed = 2f;
-    public float detectionRange = 6f;    // ระยะที่เริ่มไล่ตาม Player
-    public float stopDistance = 0.5f;    // ระยะห่างที่หยุดไล่ (กันเดินทับ Player)
+    [Header("Vision & Movement")]
+    public float moveSpeed = 3f;
+    public float visionRange = 7f;
+    public LayerMask obstacleLayer; // อย่าลืมติ๊ก Layer Ground และ Wall
+    private Transform player;
+    private bool isChasing = false;
 
-    [Header("Contact Damage (ทางเลือก)")]
-    public bool dealContactDamage = true;
-    public int contactDamage = 1;
-    public float contactCooldown = 1f;   // กันโดนดาเมจรัวทุกเฟรมตอนชนติดกัน
-
-    [Header("References")]
-    public LayerMask obstacleLayer;      // (ทางเลือก) ใช้เผื่ออนาคตถ้าจะเช็คแนวขวางระหว่างไล่
+    [Header("Edge & Wall Check")]
+    public Transform checkPoint;
+    public float checkDistance = 1f;
 
     private Rigidbody2D rb;
-    private Transform player;
-    private float contactCooldownCounter;
-
-    void Awake()
-    {
-        rb = GetComponent<Rigidbody2D>();
-        currentHealth = maxHealth;
-    }
 
     void Start()
     {
-        // หา Player ในฉากด้วย Tag (ต้องตั้ง Tag "Player" ที่ตัวละครผู้เล่นไว้ก่อน)
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null)
-        {
-            player = playerObj.transform;
-        }
-        else
-        {
-            Debug.LogWarning($"[{name}] หา GameObject ที่มี Tag 'Player' ไม่เจอ ตรวจสอบว่าตั้ง Tag ให้ Player แล้วหรือยัง", this);
-        }
+        currentHealth = maxHealth;
+        rb = GetComponent<Rigidbody2D>();
+
+        GameObject p = GameObject.FindGameObjectWithTag("Player");
+        if (p != null) player = p.transform;
     }
 
     void Update()
-    {
-        if (contactCooldownCounter > 0f)
-        {
-            contactCooldownCounter -= Time.deltaTime;
-        }
-    }
-
-    void FixedUpdate()
-    {
-        ChasePlayer();
-    }
-
-    private void ChasePlayer()
     {
         if (player == null) return;
 
         float distance = Vector2.Distance(transform.position, player.position);
 
-        // อยู่นอกระยะตรวจจับ หรือใกล้ Player เกินไปแล้ว -> หยุดนิ่ง
-        if (distance > detectionRange || distance <= stopDistance)
+        if (distance <= visionRange)
         {
-            rb.linearVelocity = Vector2.zero;
-            return;
-        }
+            Vector2 directionToPlayer = (player.position - transform.position).normalized;
+            RaycastHit2D hit = Physics2D.Raycast(transform.position, directionToPlayer, distance, obstacleLayer);
 
-        Vector2 direction = ((Vector2)player.position - (Vector2)transform.position).normalized;
-        rb.linearVelocity = direction * moveSpeed;
+            // ถ้าไม่ติดกำแพงแปลว่ามองเห็น
+            isChasing = (hit.collider == null);
+        }
+        else
+        {
+            isChasing = false;
+        }
     }
 
-    // เรียกจากภายนอก เช่น Bullet.cs ตอนกระสุนชน
-    public void TakeDamage(int amount)
+    void FixedUpdate()
     {
-        currentHealth -= amount;
+        if (isChasing && player != null)
+        {
+            ChasePlayer();
+        }
+        else
+        {
+            // หยุดเดินเมื่อไม่เห็นผู้เล่น
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        }
+    }
 
+    private void ChasePlayer()
+    {
+        // หาว่าผู้เล่นอยู่ซ้าย (-1) หรือขวา (1)
+        float directionToPlayer = Mathf.Sign(player.position.x - transform.position.x);
+
+        // เนื่องจากโมเดลตั้งต้นหน้าสีขาวหันไปทางซ้าย
+        // เดินซ้าย (direction = -1) -> Scale X ต้องเป็น 1
+        // เดินขวา (direction = 1) -> Scale X ต้องเป็น -1 เพื่อพลิกหน้ากลับ
+        transform.localScale = new Vector3(-directionToPlayer * Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
+
+        // เช็คพื้นและกำแพงด้านหน้า (CheckPoint จะย้ายฝั่งตาม Scale ให้อัตโนมัติ)
+        bool isGroundAhead = Physics2D.Raycast(checkPoint.position, Vector2.down, checkDistance, obstacleLayer);
+        bool isWallAhead = Physics2D.Raycast(checkPoint.position, new Vector2(directionToPlayer, 0), checkDistance, obstacleLayer);
+
+        if (isGroundAhead && !isWallAhead)
+        {
+            rb.linearVelocity = new Vector2(directionToPlayer * moveSpeed, rb.linearVelocity.y);
+        }
+        else
+        {
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        }
+    }
+
+    public void TakeDamage(int damage)
+    {
+        currentHealth -= damage;
         if (currentHealth <= 0)
         {
-            Die();
+            Destroy(gameObject);
         }
     }
 
-    private void Die()
+    private void OnCollisionEnter2D(Collision2D collision)
     {
-        // จุดนี้ใส่ effect/animation/เสียงตายเพิ่มทีหลังได้ เช่น Instantiate(deathEffectPrefab, transform.position, Quaternion.identity);
-        Destroy(gameObject);
-    }
-
-    void OnCollisionStay2D(Collision2D collision)
-    {
-        if (!dealContactDamage) return;
-        if (contactCooldownCounter > 0f) return;
-
+        // ทำดาเมจใส่ผู้เล่นเมื่อเดินชน
         if (collision.gameObject.CompareTag("Player"))
         {
-            // ตัวอย่างเรียก TakeDamage ฝั่ง Player ถ้ามีสคริปต์ PlayerHealth
-            collision.gameObject.GetComponent<PlayerHealth>()?.TakeDamage(contactDamage);
-            contactCooldownCounter = contactCooldown;
+            PlayerHealth pHealth = collision.gameObject.GetComponent<PlayerHealth>();
+            if (pHealth != null) pHealth.TakeDamage(damageToPlayer);
         }
     }
 
-    void OnDrawGizmosSelected()
+    private void OnDrawGizmosSelected()
     {
-        // แสดงระยะตรวจจับใน Scene view
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.DrawWireSphere(transform.position, visionRange);
 
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, stopDistance);
+        if (checkPoint != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawRay(checkPoint.position, Vector2.down * checkDistance);
+
+            // วาดเส้นเช็คกำแพง (ทิศอิงตามการหันหน้าปัจจุบัน)
+            float currentFacing = transform.localScale.x > 0 ? -1f : 1f;
+            Gizmos.DrawRay(checkPoint.position, new Vector2(currentFacing, 0) * checkDistance);
+        }
     }
 }
