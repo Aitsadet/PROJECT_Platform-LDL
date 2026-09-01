@@ -273,7 +273,7 @@ GameObject:
   - component: {fileID: 281230255}
   - component: {fileID: 281230254}
   m_Layer: 6
-  m_Name: wall
+  m_Name: Wall
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1638,7 +1638,7 @@ GameObject:
   - component: {fileID: 869048649}
   - component: {fileID: 869048648}
   m_Layer: 3
-  m_Name: Tilemap
+  m_Name: Floor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5548,16 +5548,6 @@ MonoBehaviour:
   dashCooldown: 0.5
   allowAirDash: 1
   resetJumpOnDash: 0
-  wallCheckDistance: 0.5
-  wallCheckYOffset: 0
-  wallCheckRadius: 0.2
-  wallLayer:
-    serializedVersion: 2
-    m_Bits: 64
-  wallSlideSpeed: 2
-  wallJumpForceX: 8
-  wallJumpForceY: 10
-  wallJumpLockTime: 0.15
 --- !u!213 &1151645257
 Sprite:
   serializedVersion: 2
@@ -6148,7 +6138,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1843242031
 Transform:
   m_ObjectHideFlags: 0
