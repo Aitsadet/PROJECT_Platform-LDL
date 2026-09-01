@@ -47,3 +47,5 @@ MonoBehaviour:
   enemyPrefab: {fileID: 7921631674035256681, guid: 54a489755f54574428902bcfc90fa59a, type: 3}
   spawnCount: 2
   areaSize: {x: 5, y: 3}
+  minDistance: 3
+  maxAttempts: 15

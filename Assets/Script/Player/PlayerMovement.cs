@@ -3,6 +3,7 @@ using UnityEngine.InputSystem;
 
 public class PlayerMovement : MonoBehaviour
 {
+    // ... (ส่วนตัวแปร Header ต่างๆ เหมือนเดิม) ...
     [Header("Movement Settings")]
     public float moveSpeed = 5f;
 
@@ -34,6 +35,10 @@ public class PlayerMovement : MonoBehaviour
     private bool isGrounded;
     private bool facingRight = true;
 
+    // --- เพิ่มตัวแปรหน่วงเวลาไม่ให้หันหน้าตามการเดินทันทีหลังยิง ---
+    private float aimLockTime = 0.5f;
+    private float aimLockCounter = 0f;
+
     private int jumpCount;
     private float coyoteTimeCounter;
     private float jumpBufferCounter;
@@ -55,6 +60,12 @@ public class PlayerMovement : MonoBehaviour
     void Update()
     {
         if (Keyboard.current == null) return;
+
+        // นับเวลาล็อกการหันหน้า
+        if (aimLockCounter > 0)
+        {
+            aimLockCounter -= Time.deltaTime;
+        }
 
         // --- นับเวลา cooldown ของ dash ---
         if (!canDash)
@@ -82,16 +93,17 @@ public class PlayerMovement : MonoBehaviour
         else if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
             horizontalInput = 1f;
 
-        // --- หันหน้าด้วย Scale (แบบ 2) ---
-        if (horizontalInput > 0)
+        // --- หันหน้าด้วย Scale (จะทำงานก็ต่อเมื่อไม่ได้ถูกล็อคหน้าจากการยิง) ---
+        if (aimLockCounter <= 0f)
         {
-            transform.localScale = new Vector3(Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
-            facingRight = true;
-        }
-        else if (horizontalInput < 0)
-        {
-            transform.localScale = new Vector3(-Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
-            facingRight = false;
+            if (horizontalInput > 0)
+            {
+                FaceDirection(1f);
+            }
+            else if (horizontalInput < 0)
+            {
+                FaceDirection(-1f);
+            }
         }
 
         // --- เช็คพื้น ---
@@ -145,6 +157,7 @@ public class PlayerMovement : MonoBehaviour
 
     void FixedUpdate()
     {
+        // ... (ส่วนนี้เหมือนเดิม) ...
         if (isDashing)
         {
             float dashDirection = facingRight ? 1f : -1f;
@@ -152,10 +165,8 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        // --- เดินซ้าย-ขวา ---
         rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
 
-        // --- ปรับ Gravity ---
         if (rb.linearVelocity.y < 0f)
         {
             rb.linearVelocity += Vector2.up * Physics2D.gravity.y * (fallMultiplier - 1f) * Time.fixedDeltaTime;
@@ -166,6 +177,7 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    // ... (ส่วน Jump และ Dash เหมือนเดิม) ...
     private void DoJump()
     {
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
@@ -206,5 +218,27 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
+    }
+
+    // ================= ฟังก์ชันสำหรับจัดการการหันหน้า =================
+    private void FaceDirection(float directionX)
+    {
+        if (directionX > 0)
+        {
+            transform.localScale = new Vector3(Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
+            facingRight = true;
+        }
+        else if (directionX < 0)
+        {
+            transform.localScale = new Vector3(-Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
+            facingRight = false;
+        }
+    }
+
+    // สคริปต์ยิงปืนจะเรียกใช้คำสั่งนี้เมื่อกดยิง เพื่อบังคับให้หันหน้าตามทิศเมาส์
+    public void ForceFaceDirection(float directionX)
+    {
+        FaceDirection(directionX);
+        aimLockCounter = aimLockTime; // ล็อคไม่ให้หันหน้าตามทิศการเดินเป็นเวลาสั้นๆ (0.5วิ) เพื่อให้ดูสมูท
     }
 }

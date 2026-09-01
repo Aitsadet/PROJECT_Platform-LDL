@@ -4,26 +4,32 @@ using UnityEngine.InputSystem;
 public class PlayerShooting : MonoBehaviour
 {
     [Header("Aiming")]
-    public Transform firePoint;          // จุดที่กระสุนจะเกิด (ลูกของ Player วางไว้ปลายปืน/มือ)
-    public Transform weaponPivot;        // (ทางเลือก) ตัวหมุนตามเมาส์ เช่น sprite ปืน ถ้าไม่มีปล่อยว่างได้
-    public Camera mainCamera;            // กล้องหลัก ถ้าไม่ใส่จะใช้ Camera.main อัตโนมัติ
+    public Transform firePoint;
+    public Transform weaponPivot;
+    public Camera mainCamera;
 
     [Header("Shooting")]
     public GameObject bulletPrefab;
     public float bulletSpeed = 15f;
-    public float fireRate = 0.25f;       // วินาทีต่อการยิง 1 นัด (ยิ่งน้อยยิ่งยิงถี่)
+    public float fireRate = 0.25f;
 
-    [Header("Flip Body With Aim (ทางเลือก)")]
-    public SpriteRenderer bodySprite;    // ถ้าอยากให้ตัวละครหันตามทิศเมาส์ด้วย ใส่ตรงนี้
-    public bool flipBodyWithAim = true;
+    // --- ไม่จำเป็นต้องใช้ Flip Body With Aim จากสคริปต์นี้แล้ว เพราะเราจะพลิก Scale ทางสคริปต์เดินแทน ---
+    // public SpriteRenderer bodySprite;    
+    // public bool flipBodyWithAim = true;
 
     private float fireCooldown;
     private Vector2 aimDirection = Vector2.right;
+
+    // --- เพิ่มการอ้างอิงไปที่สคริปต์ PlayerMovement ---
+    private PlayerMovement playerMovement;
 
     void Start()
     {
         if (mainCamera == null)
             mainCamera = Camera.main;
+
+        // ค้นหาสคริปต์เดินในตัวละคร
+        playerMovement = GetComponent<PlayerMovement>();
     }
 
     void Update()
@@ -32,11 +38,6 @@ public class PlayerShooting : MonoBehaviour
 
         UpdateAimDirection();
         RotateWeaponPivot();
-
-        if (flipBodyWithAim && bodySprite != null)
-        {
-            bodySprite.flipX = aimDirection.x < 0f;
-        }
 
         // นับเวลา cooldown การยิง
         if (fireCooldown > 0f)
@@ -48,10 +49,15 @@ public class PlayerShooting : MonoBehaviour
         if (Mouse.current.leftButton.wasPressedThisFrame && fireCooldown <= 0f)
         {
             Shoot();
+
+            // --- บังคับหันหน้าไปทางเมาส์เมื่อกดยิง ---
+            if (playerMovement != null)
+            {
+                playerMovement.ForceFaceDirection(aimDirection.x);
+            }
         }
     }
 
-    // หาทิศทางจากตัวละครไปยังตำแหน่งเมาส์ในโลกเกม
     private void UpdateAimDirection()
     {
         Vector2 mouseScreenPos = Mouse.current.position.ReadValue();
@@ -63,13 +69,23 @@ public class PlayerShooting : MonoBehaviour
         aimDirection = ((Vector2)mouseWorldPos - originPos).normalized;
     }
 
-    // หมุน weaponPivot ให้ชี้ไปทางเมาส์ (ถ้ามีปืน/แขนที่ต้องหมุนตาม)
     private void RotateWeaponPivot()
     {
         if (weaponPivot == null) return;
 
         float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
-        weaponPivot.rotation = Quaternion.Euler(0f, 0f, angle);
+
+        // --- แก้บั๊กเรื่องปืนตีลังกาเวลาหันตัว ---
+        // ถ้าระบบหลักพลิก Scale ของตัวละคร แกนหมุนจะต้องปรับทิศทางเล็กน้อยไม่ให้หัวปืนกลับด้าน
+        if (transform.localScale.x < 0)
+        {
+            // ถ้าตัวละครหันซ้าย แกนหมุนจะต้องถูก Flip กลับ (เพราะมันถูกดึง Scale ติดลบมา)
+            weaponPivot.rotation = Quaternion.Euler(0f, 0f, angle + 180f);
+        }
+        else
+        {
+            weaponPivot.rotation = Quaternion.Euler(0f, 0f, angle);
+        }
     }
 
     private void Shoot()
@@ -80,7 +96,6 @@ public class PlayerShooting : MonoBehaviour
 
         GameObject bulletObj = Instantiate(bulletPrefab, firePoint.position, Quaternion.identity);
 
-        // หมุนกระสุนให้หันตามทิศยิง (เผื่อ sprite กระสุนมีหัวท้าย)
         float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
         bulletObj.transform.rotation = Quaternion.Euler(0f, 0f, angle);
 
@@ -88,16 +103,6 @@ public class PlayerShooting : MonoBehaviour
         if (bulletScript != null)
         {
             bulletScript.SetDirection(aimDirection, bulletSpeed);
-        }
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        if (firePoint != null)
-        {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(firePoint.position, 0.1f);
-            Gizmos.DrawLine(firePoint.position, firePoint.position + (Vector3)aimDirection * 1f);
         }
     }
 }
